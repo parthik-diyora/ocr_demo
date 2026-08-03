@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.log
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+backend/uploads/*
+!backend/uploads/.gitkeep
+ocr-service/tmp/*
+!ocr-service/tmp/.gitkeep
+
