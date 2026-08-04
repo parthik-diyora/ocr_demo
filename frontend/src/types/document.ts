@@ -53,3 +53,13 @@ export interface ExtractedDocument {
   fileType: string;
 }
 
+export interface DocumentListItem {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  templateName: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

@@ -10,9 +10,22 @@ const updateSchema = z.object({
 export class DocumentController {
   constructor(private readonly documentService: DocumentService) {}
 
+  list = async (request: Request, response: Response): Promise<void> => {
+    if (!request.auth?.userId) {
+      throw new AppError("Authentication required.", 401);
+    }
+    const documents = await this.documentService.listForUser(
+      request.auth.userId
+    );
+    response.json({ documents });
+  };
+
   upload = async (request: Request, response: Response): Promise<void> => {
     if (!request.file) throw new AppError("A document file is required.", 400);
-    const result = await this.documentService.process(request.file);
+    const result = await this.documentService.process(
+      request.file,
+      request.auth?.userId ?? null
+    );
     response.status(201).json(result);
   };
 
@@ -20,9 +33,15 @@ export class DocumentController {
     const input = updateSchema.parse(request.body);
     const { id } = request.params;
     if (!id) throw new AppError("Document ID is required.", 400);
-    const docId = String(id);
+    if (!request.auth?.userId) {
+      throw new AppError("Authentication required.", 401);
+    }
+    const existing = await this.documentService.findById(String(id));
+    if (!existing || existing.userId !== request.auth.userId) {
+      throw new AppError("Document not found.", 404);
+    }
     const result = await this.documentService.updateFields(
-      docId,
+      String(id),
       input.fields
     );
     response.json({
@@ -35,10 +54,13 @@ export class DocumentController {
   getById = async (request: Request, response: Response): Promise<void> => {
     const { id } = request.params;
     if (!id) throw new AppError("Document ID is required.", 400);
-    const docId = String(id);
-    const result = await this.documentService.findById(docId);
-    if (!result) throw new AppError("Document not found.", 404);
+    if (!request.auth?.userId) {
+      throw new AppError("Authentication required.", 401);
+    }
+    const result = await this.documentService.getExtractedForUser(
+      String(id),
+      request.auth.userId
+    );
     response.json(result);
   };
 }
-

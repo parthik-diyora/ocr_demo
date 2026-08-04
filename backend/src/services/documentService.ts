@@ -1,9 +1,11 @@
 import path from "node:path";
 import type {
+  DocumentListItem,
   DocumentRepository,
   DocumentRecord
 } from "../repositories/documentRepository.js";
 import type { ExtractedDocument, OcrResponse } from "../types/document.js";
+import { AppError } from "../utils/errors.js";
 import { OcrService } from "./ocrService.js";
 import { TemplateService } from "./templateService.js";
 import { logger } from "../utils/logger.js";
@@ -55,7 +57,10 @@ export class DocumentService {
     private readonly templateService: TemplateService
   ) {}
 
-  async process(file: UploadedFile): Promise<ExtractedDocument> {
+  async process(
+    file: UploadedFile,
+    userId?: string | null
+  ): Promise<ExtractedDocument> {
     const startedAt = Date.now();
     logger.info(
       {
@@ -173,6 +178,7 @@ export class DocumentService {
     );
 
     const record = await this.repository.create({
+      userId: userId ?? null,
       originalName: file.originalname,
       storedName: file.filename,
       mimeType: file.mimetype,
@@ -196,17 +202,22 @@ export class DocumentService {
       "Document processing completed"
     );
 
-    return {
-      documentId: record.id,
-      template: record.templateId,
-      templateName: record.templateName,
-      fields: record.fields,
-      confidence: record.confidence,
-      fieldDefinitions: record.fieldDefinitions,
-      ocr,
-      fileUrl: `/uploads/${path.basename(record.storedName)}`,
-      fileType: record.mimeType
-    };
+    return this.toExtractedDocument(record, ocr);
+  }
+
+  listForUser(userId: string): Promise<DocumentListItem[]> {
+    return this.repository.listByUserId(userId);
+  }
+
+  async getExtractedForUser(
+    id: string,
+    userId: string
+  ): Promise<ExtractedDocument> {
+    const record = await this.repository.findById(id);
+    if (!record || record.userId !== userId) {
+      throw new AppError("Document not found.", 404);
+    }
+    return this.toExtractedDocument(record, record.ocrResult);
   }
 
   updateFields(
@@ -218,5 +229,22 @@ export class DocumentService {
 
   findById(id: string): Promise<DocumentRecord | null> {
     return this.repository.findById(id);
+  }
+
+  private toExtractedDocument(
+    record: DocumentRecord,
+    ocr: OcrResponse
+  ): ExtractedDocument {
+    return {
+      documentId: record.id,
+      template: record.templateId,
+      templateName: record.templateName,
+      fields: record.fields,
+      confidence: record.confidence,
+      fieldDefinitions: record.fieldDefinitions,
+      ocr,
+      fileUrl: `/uploads/${path.basename(record.storedName)}`,
+      fileType: record.mimeType
+    };
   }
 }

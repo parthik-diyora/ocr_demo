@@ -17,7 +17,12 @@ const envSchema = z.object({
     .default("false")
     .transform((value) => value === "true"),
   MAX_UPLOAD_MB: z.coerce.number().positive().default(20),
-  LOG_LEVEL: z.string().default("info")
+  LOG_LEVEL: z.string().default("info"),
+  JWT_SECRET: z
+    .string()
+    .min(16)
+    .default("ocr-demo-dev-jwt-secret-change-me"),
+  JWT_EXPIRES_IN: z.string().default("7d")
 });
 
 const parsed = envSchema.parse(process.env);

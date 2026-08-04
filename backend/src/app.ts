@@ -4,14 +4,23 @@ import express from "express";
 import helmet from "helmet";
 import { pinoHttp } from "pino-http";
 import { config } from "./config.js";
+import { AuthController } from "./controllers/authController.js";
 import { DocumentController } from "./controllers/documentController.js";
+import { createRequireAuth } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import {
   type DocumentRepository,
   InMemoryDocumentRepository,
   PostgresDocumentRepository
 } from "./repositories/documentRepository.js";
+import {
+  type UserRepository,
+  InMemoryUserRepository,
+  PostgresUserRepository
+} from "./repositories/userRepository.js";
+import { createAuthRouter } from "./routes/authRoutes.js";
 import { createDocumentRouter } from "./routes/documentRoutes.js";
+import { AuthService } from "./services/authService.js";
 import { DocumentService } from "./services/documentService.js";
 import { OcrService } from "./services/ocrService.js";
 import { TemplateService } from "./services/templateService.js";
@@ -22,24 +31,35 @@ export const createApp = async () => {
 
   const templateService = new TemplateService();
   await templateService.initialize();
-  let repository: DocumentRepository = config.USE_IN_MEMORY_DB
+
+  let documentRepository: DocumentRepository = config.USE_IN_MEMORY_DB
     ? new InMemoryDocumentRepository()
     : new PostgresDocumentRepository();
+  let userRepository: UserRepository = config.USE_IN_MEMORY_DB
+    ? new InMemoryUserRepository()
+    : new PostgresUserRepository();
+
   try {
-    await repository.initialize?.();
+    await documentRepository.initialize?.();
   } catch (error) {
     logger.warn(
       { error },
       "PostgreSQL connection failed. Falling back to in-memory storage."
     );
-    repository = new InMemoryDocumentRepository();
+    documentRepository = new InMemoryDocumentRepository();
+    userRepository = new InMemoryUserRepository();
   }
-  const service = new DocumentService(
-    repository,
+
+  const authService = new AuthService(userRepository);
+  const requireAuth = createRequireAuth(authService);
+  const authController = new AuthController(authService);
+
+  const documentService = new DocumentService(
+    documentRepository,
     new OcrService(),
     templateService
   );
-  const controller = new DocumentController(service);
+  const documentController = new DocumentController(documentService);
 
   const app = express();
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
@@ -50,7 +70,11 @@ export const createApp = async () => {
   app.get("/health", (_request, response) => {
     response.json({ status: "ok", service: "backend" });
   });
-  app.use("/api/documents", createDocumentRouter(controller));
+  app.use("/api/auth", createAuthRouter(authController, requireAuth));
+  app.use(
+    "/api/documents",
+    createDocumentRouter(documentController, requireAuth)
+  );
   app.use(errorHandler);
   return app;
 };
