@@ -4,8 +4,17 @@ import type {
   DocumentRepository,
   DocumentRecord
 } from "../repositories/documentRepository.js";
-import type { ExtractedDocument, OcrResponse } from "../types/document.js";
+import type {
+  DocumentTemplate,
+  ExtractedDocument,
+  FieldType,
+  OcrResponse,
+  TemplateField
+} from "../types/document.js";
+import type { OcrProvider } from "../types/ocr.js";
 import { AppError } from "../utils/errors.js";
+import { config } from "../config.js";
+import type { GoogleFormField } from "./googleDocumentAiService.js";
 import { OcrService } from "./ocrService.js";
 import { TemplateService } from "./templateService.js";
 import { logger } from "../utils/logger.js";
@@ -15,6 +24,12 @@ interface UploadedFile {
   filename: string;
   originalname: string;
   mimetype: string;
+}
+
+interface ExtractionResult {
+  template: DocumentTemplate;
+  fields: Record<string, string>;
+  confidence: Record<string, number>;
 }
 
 const summarizeOcr = (ocr: OcrResponse) => {
@@ -50,6 +65,48 @@ const summarizeOcr = (ocr: OcrResponse) => {
   };
 };
 
+const slugify = (label: string): string => {
+  const base = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+  return base || "field";
+};
+
+const inferFieldType = (label: string, value: string): FieldType => {
+  const haystack = `${label} ${value}`.toLowerCase();
+  if (haystack.includes("email") || /@/.test(value)) return "email";
+  if (
+    haystack.includes("phone") ||
+    haystack.includes("mobile") ||
+    haystack.includes("tel")
+  ) {
+    return "tel";
+  }
+  if (haystack.includes("date") || /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(value)) {
+    return "date";
+  }
+  if (haystack.includes("address") || value.length > 80) return "textarea";
+  if (/^\d+(\.\d+)?$/.test(value.trim())) return "number";
+  return "text";
+};
+
+const detectTitle = (ocr: OcrResponse): string => {
+  const firstLines = ocr.text
+    .filter((item) => item.page === 1)
+    .slice(0, 8)
+    .map((item) => item.text.trim())
+    .filter(Boolean);
+  const title = firstLines.find(
+    (line) =>
+      line.length >= 8 &&
+      line.length <= 80 &&
+      !line.toLowerCase().includes("please complete")
+  );
+  return title ?? "Google Form Parser";
+};
+
 export class DocumentService {
   constructor(
     private readonly repository: DocumentRepository,
@@ -59,12 +116,14 @@ export class DocumentService {
 
   async process(
     file: UploadedFile,
-    userId?: string | null
+    userId?: string | null,
+    provider: OcrProvider = config.OCR_PROVIDER_DEFAULT
   ): Promise<ExtractedDocument> {
     const startedAt = Date.now();
     logger.info(
       {
         event: "ocr.pipeline.start",
+        provider,
         originalName: file.originalname,
         mimeType: file.mimetype,
         storedName: file.filename
@@ -73,17 +132,22 @@ export class DocumentService {
     );
 
     let ocr: OcrResponse;
+    let formFields: GoogleFormField[] | undefined;
     const ocrStartedAt = Date.now();
     try {
-      ocr = await this.ocrService.process(
+      const result = await this.ocrService.process(
         file.path,
         file.originalname,
-        file.mimetype
+        file.mimetype,
+        provider
       );
+      ocr = result.ocr;
+      formFields = result.formFields;
     } catch (error) {
       logger.error(
         {
           event: "ocr.pipeline.failed",
+          provider,
           originalName: file.originalname,
           durationMs: Date.now() - ocrStartedAt,
           error: error instanceof Error ? error.message : String(error)
@@ -97,8 +161,10 @@ export class DocumentService {
     logger.info(
       {
         event: "ocr.raw.result",
+        provider,
         originalName: file.originalname,
         durationMs: Date.now() - ocrStartedAt,
+        formFieldCount: formFields?.length ?? 0,
         ...ocrSummary,
         rawItems: ocr.text.map((item) => ({
           page: item.page,
@@ -110,7 +176,13 @@ export class DocumentService {
       "OCR raw data received"
     );
 
-    const extraction = this.templateService.extract(ocr);
+    // Google Form Parser: use Console-style key/value pairs directly.
+    // Local OCR: keep dynamic heuristic extraction.
+    const extraction: ExtractionResult =
+      provider === "google" && formFields && formFields.length > 0
+        ? this.extractFromGoogleFormFields(formFields, ocr)
+        : this.templateService.extract(ocr);
+
     const fieldEntries = Object.entries(extraction.fields);
     const filledFields = fieldEntries.filter(([, value]) =>
       Boolean(value?.trim())
@@ -138,6 +210,11 @@ export class DocumentService {
     logger.info(
       {
         event: "ocr.fields.detected",
+        provider,
+        source:
+          provider === "google" && formFields && formFields.length > 0
+            ? "google_form_parser"
+            : "local_heuristic",
         originalName: file.originalname,
         formTitle: extraction.template.name,
         totalFields: detectedFields.length,
@@ -162,6 +239,7 @@ export class DocumentService {
     logger.info(
       {
         event: "ocr.extraction.result",
+        provider,
         originalName: file.originalname,
         templateId: extraction.template.id,
         templateName: extraction.template.name,
@@ -174,7 +252,7 @@ export class DocumentService {
         confidenceScores: extraction.confidence,
         durationMs: Date.now() - startedAt
       },
-      "Dynamic form fields extracted from uploaded OCR"
+      "Form fields extracted from uploaded document"
     );
 
     const record = await this.repository.create({
@@ -229,6 +307,55 @@ export class DocumentService {
 
   findById(id: string): Promise<DocumentRecord | null> {
     return this.repository.findById(id);
+  }
+
+  private extractFromGoogleFormFields(
+    formFields: GoogleFormField[],
+    ocr: OcrResponse
+  ): ExtractionResult {
+    const fields: Record<string, string> = {};
+    const confidence: Record<string, number> = {};
+    const fieldDefinitions: Record<string, TemplateField> = {};
+    const usedKeys = new Set<string>();
+
+    for (const formField of formFields) {
+      const baseKey = slugify(formField.label);
+      let key = baseKey;
+      let suffix = 2;
+      while (usedKeys.has(key)) {
+        key = `${baseKey}_${suffix++}`;
+      }
+      usedKeys.add(key);
+
+      const [x0, y0] = formField.box[0] ?? [0, 0];
+      const [x2, y2] = formField.box[2] ?? [x0 + 40, y0 + 16];
+
+      fields[key] = formField.value;
+      confidence[key] = Math.round(
+        Math.min(1, Math.max(0, formField.confidence)) * 100
+      );
+      fieldDefinitions[key] = {
+        label: formField.label,
+        type: inferFieldType(formField.label, formField.value),
+        section: `Page ${formField.page}`,
+        x: x0,
+        y: y0,
+        width: Math.max(1, x2 - x0),
+        height: Math.max(1, y2 - y0),
+        page: formField.page
+      };
+    }
+
+    return {
+      template: {
+        id: "google-form-parser",
+        name: detectTitle(ocr),
+        anchors: [],
+        fields: fieldDefinitions
+      },
+      fields,
+      confidence
+    };
   }
 
   private toExtractedDocument(

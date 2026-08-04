@@ -10,6 +10,8 @@ venv/
 .mypy_cache/
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend/secrets/*
+!backend/secrets/.gitkeep
 ocr-service/tmp/*
 !ocr-service/tmp/.gitkeep
 

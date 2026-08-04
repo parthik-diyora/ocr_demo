@@ -73,6 +73,8 @@ export const UploadDocumentPage = () => {
             <UploadPanel
               uploading={workflow.uploading}
               progress={workflow.progress}
+              provider={workflow.provider}
+              onProviderChange={workflow.setProvider}
               onUpload={handleUpload}
             />
           )}

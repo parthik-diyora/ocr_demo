@@ -67,6 +67,8 @@ export const DocumentWorkspace = () => {
             <UploadPanel
               uploading={workflow.uploading}
               progress={workflow.progress}
+              provider={workflow.provider}
+              onProviderChange={workflow.setProvider}
               onUpload={workflow.upload}
             />
           </Stack>

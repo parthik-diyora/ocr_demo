@@ -65,10 +65,12 @@ export const getDocument = async (
 
 export const uploadDocument = async (
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  provider: "local" | "google" = "local"
 ): Promise<ExtractedDocument> => {
   const body = new FormData();
   body.append("file", file);
+  body.append("provider", provider);
   const response = await api.post<ExtractedDocument>(
     "/api/documents/upload",
     body,

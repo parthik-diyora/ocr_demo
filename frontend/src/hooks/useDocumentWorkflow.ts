@@ -6,6 +6,7 @@ import {
   uploadDocument
 } from "../services/api";
 import type { ExtractedDocument } from "../types/document";
+import type { OcrProvider } from "../types/ocr";
 
 export const useDocumentWorkflow = (documentId?: string) => {
   const [document, setDocument] = useState<ExtractedDocument | null>(null);
@@ -15,6 +16,7 @@ export const useDocumentWorkflow = (documentId?: string) => {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [provider, setProvider] = useState<OcrProvider>("local");
 
   useEffect(() => {
     if (!documentId) {
@@ -44,7 +46,7 @@ export const useDocumentWorkflow = (documentId?: string) => {
     setError(null);
     setSaved(false);
     try {
-      const result = await uploadDocument(file, setProgress);
+      const result = await uploadDocument(file, setProgress, provider);
       setDocument(result);
       return result;
     } catch (uploadError) {
@@ -86,6 +88,8 @@ export const useDocumentWorkflow = (documentId?: string) => {
     progress,
     error,
     saved,
+    provider,
+    setProvider,
     upload,
     save,
     reset
