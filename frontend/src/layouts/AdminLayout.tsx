@@ -1,8 +1,8 @@
+import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
-import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import ExtensionOutlinedIcon from "@mui/icons-material/ExtensionOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
 import {
@@ -40,14 +40,14 @@ const navItems = [
     icon: <CloudUploadOutlinedIcon />
   },
   {
-    label: "Microsoft Teams",
-    path: "/integrations/teams",
-    icon: <GroupsOutlinedIcon />
+    label: "Integrations",
+    path: "/integrations",
+    icon: <ExtensionOutlinedIcon />
   },
   {
-    label: "Email",
-    path: "/integrations/email",
-    icon: <EmailOutlinedIcon />
+    label: "Analytics",
+    path: "/analytics",
+    icon: <AssessmentOutlinedIcon />
   }
 ];
 
@@ -97,7 +97,11 @@ export const AdminLayout = () => {
             key={item.path}
             component={NavLink}
             to={item.path}
-            end={item.path === "/" || item.path === "/documents"}
+            end={
+              item.path === "/" ||
+              item.path === "/documents" ||
+              item.path === "/integrations"
+            }
             onClick={() => setMobileOpen(false)}
             sx={{
               borderRadius: 1.5,

@@ -1,7 +1,6 @@
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
-import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import ExtensionOutlinedIcon from "@mui/icons-material/ExtensionOutlined";
 import {
   Alert,
   Box,
@@ -47,6 +46,9 @@ export const DashboardPage = () => {
     void load();
   }, []);
 
+  const pendingCount = documents.filter((doc) => doc.status !== "reviewed").length;
+  const reviewedCount = documents.filter((doc) => doc.status === "reviewed").length;
+
   return (
     <Stack spacing={3}>
       <Box>
@@ -54,8 +56,45 @@ export const DashboardPage = () => {
           Welcome{user?.name ? `, ${user.name}` : ""}
         </Typography>
         <Typography variant="body2" color="text.secondary" mt={0.5}>
-          Upload documents for OCR extraction, or explore upcoming integrations.
+          Upload documents for OCR extraction, connect integrations, or review
+          analytics.
         </Typography>
+      </Box>
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(3, 1fr)"
+          }
+        }}
+      >
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="caption" color="text.secondary">
+            In recent list
+          </Typography>
+          <Typography variant="h5" fontWeight={800}>
+            {loading ? "—" : documents.length}
+          </Typography>
+        </Paper>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="caption" color="text.secondary">
+            Pending (recent)
+          </Typography>
+          <Typography variant="h5" fontWeight={800}>
+            {loading ? "—" : pendingCount}
+          </Typography>
+        </Paper>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="caption" color="text.secondary">
+            Reviewed (recent)
+          </Typography>
+          <Typography variant="h5" fontWeight={800}>
+            {loading ? "—" : reviewedCount}
+          </Typography>
+        </Paper>
       </Box>
 
       <Box
@@ -110,34 +149,17 @@ export const DashboardPage = () => {
 
         <Card variant="outlined">
           <CardContent>
-            <GroupsOutlinedIcon color="primary" sx={{ mb: 1 }} />
+            <ExtensionOutlinedIcon color="primary" sx={{ mb: 1 }} />
             <Typography variant="h6" fontWeight={700}>
-              Microsoft Teams
+              Integrations
             </Typography>
             <Typography variant="body2" color="text.secondary" mt={0.5}>
-              Connect Teams to receive documents from channels. Coming soon.
+              Microsoft Teams and Email intake in one place. Coming soon.
             </Typography>
           </CardContent>
           <CardActions sx={{ px: 2, pb: 2 }}>
-            <Button component={RouterLink} to="/integrations/teams">
-              View details
-            </Button>
-          </CardActions>
-        </Card>
-
-        <Card variant="outlined">
-          <CardContent>
-            <EmailOutlinedIcon color="primary" sx={{ mb: 1 }} />
-            <Typography variant="h6" fontWeight={700}>
-              Email
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mt={0.5}>
-              Ingest claim forms from email attachments. Coming soon.
-            </Typography>
-          </CardContent>
-          <CardActions sx={{ px: 2, pb: 2 }}>
-            <Button component={RouterLink} to="/integrations/email">
-              View details
+            <Button component={RouterLink} to="/integrations">
+              Open integrations
             </Button>
           </CardActions>
         </Card>
@@ -174,7 +196,11 @@ export const DashboardPage = () => {
           </Paper>
         ) : (
           <Paper variant="outlined">
-            <Stack divider={<Box sx={{ borderBottom: "1px solid", borderColor: "divider" }} />}>
+            <Stack
+              divider={
+                <Box sx={{ borderBottom: "1px solid", borderColor: "divider" }} />
+              }
+            >
               {documents.map((doc) => (
                 <Box
                   key={doc.id}

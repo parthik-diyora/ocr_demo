@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { GuestRoute, ProtectedRoute } from "./auth/ProtectedRoute";
 import { AdminLayout } from "./layouts/AdminLayout";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
@@ -36,14 +37,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   path="/documents/:id"
                   element={<UploadDocumentPage />}
                 />
+                <Route path="/integrations" element={<IntegrationsPage />} />
                 <Route
-                  path="/integrations/teams"
-                  element={<IntegrationsPage kind="teams" />}
+                  path="/integrations/*"
+                  element={<Navigate to="/integrations" replace />}
                 />
-                <Route
-                  path="/integrations/email"
-                  element={<IntegrationsPage kind="email" />}
-                />
+                <Route path="/analytics" element={<AnalyticsPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
