@@ -4,14 +4,21 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import {
   Box,
   Button,
+  FormControl,
+  FormControlLabel,
   LinearProgress,
+  Radio,
+  RadioGroup,
   Stack,
   Typography
 } from "@mui/material";
+import type { OcrProvider } from "../types/ocr";
 
 interface UploadPanelProps {
   uploading: boolean;
   progress: number;
+  provider: OcrProvider;
+  onProviderChange: (provider: OcrProvider) => void;
   onUpload: (file: File) => void;
 }
 
@@ -20,6 +27,8 @@ const ACCEPTED_TYPES = ["application/pdf", "image/png", "image/jpeg"];
 export const UploadPanel = ({
   uploading,
   progress,
+  provider,
+  onProviderChange,
   onUpload
 }: UploadPanelProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,7 +61,7 @@ export const UploadPanel = ({
         p: 4
       }}
     >
-      <Stack spacing={2.25} alignItems="center" sx={{ maxWidth: 440 }}>
+      <Stack spacing={2.25} alignItems="center" sx={{ maxWidth: 480 }}>
         <Box
           sx={{
             width: 64,
@@ -74,6 +83,36 @@ export const UploadPanel = ({
             PDF, PNG, JPG, or JPEG up to 20 MB
           </Typography>
         </Box>
+
+        <FormControl disabled={uploading}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            textAlign="center"
+            mb={0.5}
+          >
+            OCR engine
+          </Typography>
+          <RadioGroup
+            row
+            value={provider}
+            onChange={(event) =>
+              onProviderChange(event.target.value as OcrProvider)
+            }
+          >
+            <FormControlLabel
+              value="local"
+              control={<Radio size="small" />}
+              label="Local OCR"
+            />
+            <FormControlLabel
+              value="google"
+              control={<Radio size="small" />}
+              label="Google Document AI"
+            />
+          </RadioGroup>
+        </FormControl>
+
         <input
           ref={inputRef}
           hidden
@@ -102,7 +141,9 @@ export const UploadPanel = ({
             >
               {progress < 100
                 ? `Uploading ${progress}%`
-                : "Processing document with OCR"}
+                : provider === "google"
+                  ? "Processing with Google Document AI"
+                  : "Processing document with local OCR"}
             </Typography>
           </Box>
         )}

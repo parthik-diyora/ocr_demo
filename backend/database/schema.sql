@@ -1,7 +1,18 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(150) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(30) NOT NULL DEFAULT 'user',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   original_name VARCHAR(255) NOT NULL,
   stored_name VARCHAR(255) NOT NULL,
   mime_type VARCHAR(100) NOT NULL,
@@ -19,5 +30,10 @@ CREATE TABLE IF NOT EXISTS documents (
 ALTER TABLE documents
   ADD COLUMN IF NOT EXISTS field_definitions JSONB NOT NULL DEFAULT '{}'::jsonb;
 
+ALTER TABLE documents
+  ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS users_email_idx ON users(email);
 CREATE INDEX IF NOT EXISTS documents_template_id_idx ON documents(template_id);
 CREATE INDEX IF NOT EXISTS documents_created_at_idx ON documents(created_at DESC);
+CREATE INDEX IF NOT EXISTS documents_user_id_idx ON documents(user_id);
